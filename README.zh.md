@@ -56,7 +56,7 @@ node lib/cli.js --file draft.md --full --json --fail-on mismatch,unreachable,blo
 源码已经发布到 GitHub，npm 包尚未发布。请在本机终端中运行以下命令，不要粘贴到 Harness 的聊天输入框中；无需预先全局安装 `dsh`。
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.2/dsh-citeguard-0.1.2.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.3/dsh-citeguard-0.1.3.tgz
 npx -y @deepseek-ai/dsh --profile web --dump-config
 
 # 安装后重启正在运行的 Web UI。
@@ -64,7 +64,7 @@ npx -y @deepseek-ai/dsh web
 
 # 或构建并安装本地 tarball。
 pnpm pack
-npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.2.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.3.tgz
 ```
 
 以上命令会安装到 Web UI 使用的 `web` profile；如果只使用终端模式，请把 `web` 替换为 `headless`。包内的 [cordis.patch.yml](cordis.patch.yml) 会注册 `citeguard`。可选的 `dsh-citeguard/invariant` companion 保留给显式挂载 Harness `invariants` 服务的自定义 profile；官方 `headless` 与 `web` profile 默认不挂载该服务。激活后的工具是 `citeguard_check({ text, online? })`。
@@ -122,6 +122,6 @@ pnpm run build
 
 `full` 模式会逐个验证重定向目标，并把连接固定到已经通过校验的公网 DNS 地址集合，避免校验后再次解析产生的 DNS 重绑定竞态。自定义 fetch transport 必须只连接第三个参数收到的已验证地址集合；内置 transport 会强制执行这一约束。
 
-测试全部使用确定性假提供方，不会发起真实网络请求。`0.1.2` 增加了自动供应链校验，并发布于 [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard)。Release tarball 同时提供 SHA-256 校验文件和 GitHub 构建来源证明。包仍保持 `private: true`，不会发布到 npm。
+测试全部使用确定性假提供方，不会发起真实网络请求。`0.1.3` 增加了自动供应链校验，并发布于 [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard)。Release tarball 同时提供 SHA-256 校验文件和 GitHub 构建来源证明。包仍保持 `private: true`，不会发布到 npm。
 
 采用 BSD-3-Clause 许可证，详见 [LICENSE](LICENSE)。
