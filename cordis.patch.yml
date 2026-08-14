@@ -1,0 +1,14 @@
+# CiteGuard can be added to either the Web or Headless profile.
+
+- insert:
+    - id: citeguard
+      name: dsh-citeguard
+      config:
+        enabled: true
+        networkMode: metadata
+        timeoutMs: 8000
+        maxResponseBytes: 1048576
+        maxRedirects: 4
+        minTitleSimilarity: 0.55
+        maxTextChars: 200000
+        maxCitations: 100
