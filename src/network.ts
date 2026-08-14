@@ -1,7 +1,10 @@
 /** Size-limited HTTP transport with redirect-by-redirect SSRF validation. */
 
 import { lookup } from 'node:dns/promises'
-import { isIP } from 'node:net'
+import { request as requestHttp } from 'node:http'
+import { request as requestHttps } from 'node:https'
+import { isIP, type LookupFunction } from 'node:net'
+import { Readable } from 'node:stream'
 
 /** Stable failure categories exposed in verification receipts. */
 export type NetworkFailureCode = 'invalid-url' | 'blocked-host' | 'dns-failure' | 'too-many-redirects' | 'response-too-large' | 'http-error' | 'timeout'
@@ -17,8 +20,8 @@ export class NetworkGuardError extends Error {
 /** DNS boundary injected by security tests. */
 export type ResolveHost = (hostname: string) => Promise<readonly string[]>
 
-/** Fetch boundary injected by provider tests. */
-export type FetchLike = (input: string, init: RequestInit) => Promise<Response>
+/** Fetch boundary injected by provider tests. The third argument is the validated, connection-pinned address set. */
+export type FetchLike = (input: string, init: RequestInit, addresses: readonly string[]) => Promise<Response>
 
 /** Bounded network request configuration. */
 export interface SafeRequestOptions {
@@ -42,6 +45,11 @@ export interface SafeTextResponse {
 async function defaultResolveHost(hostname: string): Promise<readonly string[]> {
   const records = await lookup(hostname, { all: true, verbatim: true })
   return records.map(record => record.address)
+}
+
+interface SafeHttpTarget {
+  readonly url: URL
+  readonly addresses: readonly string[]
 }
 
 function publicIpv4(address: string): boolean {
@@ -74,8 +82,7 @@ export function isPublicAddress(address: string): boolean {
   return false
 }
 
-/** Validate protocol, credentials, host name, and every resolved address. */
-export async function assertSafeHttpUrl(input: string, resolver: ResolveHost = defaultResolveHost): Promise<URL> {
+async function resolveSafeHttpTarget(input: string, resolver: ResolveHost): Promise<SafeHttpTarget> {
   let url: URL
   try {
     url = new URL(input)
@@ -107,11 +114,65 @@ export async function assertSafeHttpUrl(input: string, resolver: ResolveHost = d
     throw new NetworkGuardError('blocked-host', 'The citation host resolves to a private or reserved address.')
   }
   url.hostname = hostname
-  return url
+  return { url, addresses: [...new Set(addresses)] }
+}
+
+/** Validate protocol, credentials, host name, and every resolved address. */
+export async function assertSafeHttpUrl(input: string, resolver: ResolveHost = defaultResolveHost): Promise<URL> {
+  return (await resolveSafeHttpTarget(input, resolver)).url
 }
 
 function redirect(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308
+}
+
+function responseHeaders(rawHeaders: readonly string[]): Headers {
+  const headers = new Headers()
+  for (let index = 0; index < rawHeaders.length; index += 2) {
+    headers.append(rawHeaders[index]!, rawHeaders[index + 1]!)
+  }
+  return headers
+}
+
+/** Connect only to an address from the exact DNS answer set already validated above. */
+async function fetchPinned(input: string, init: RequestInit, addresses: readonly string[]): Promise<Response> {
+  const url = new URL(input)
+  const address = addresses[0]
+  if (address === undefined) throw new NetworkGuardError('dns-failure', 'The citation host had no validated connection address.')
+  const family = isIP(address)
+  if (family === 0) throw new NetworkGuardError('dns-failure', 'The citation host returned an invalid connection address.')
+
+  const lookupPinned: LookupFunction = (_hostname, options, callback) => {
+    if (options.all) callback(null, [{ address, family }])
+    else callback(null, address, family)
+  }
+  const headers = new Headers(init.headers)
+  if (!headers.has('accept-encoding')) headers.set('accept-encoding', 'identity')
+  const request = url.protocol === 'https:' ? requestHttps : requestHttp
+
+  return await new Promise<Response>((resolve, reject) => {
+    const outgoing = request(url, {
+      method: init.method ?? 'GET',
+      headers: Object.fromEntries(headers.entries()),
+      lookup: lookupPinned,
+      signal: init.signal ?? undefined,
+    }, (incoming) => {
+      const status = incoming.statusCode
+      if (status === undefined) {
+        incoming.destroy()
+        reject(new NetworkGuardError('http-error', 'Citation provider returned no HTTP status.'))
+        return
+      }
+      const body = Readable.toWeb(incoming) as ReadableStream<Uint8Array>
+      resolve(new Response(body, {
+        status,
+        ...(incoming.statusMessage === undefined ? {} : { statusText: incoming.statusMessage }),
+        headers: responseHeaders(incoming.rawHeaders),
+      }))
+    })
+    outgoing.once('error', reject)
+    outgoing.end()
+  })
 }
 
 async function boundedText(response: Response, maximum: number): Promise<string> {
@@ -144,11 +205,12 @@ async function boundedText(response: Response, maximum: number): Promise<string>
 
 /** Fetch text with manual redirects so every target receives the same SSRF checks. */
 export async function fetchSafeText(input: string, options: SafeRequestOptions): Promise<SafeTextResponse> {
-  const fetcher = options.fetcher ?? globalThis.fetch
+  const fetcher = options.fetcher ?? fetchPinned
   const resolver = options.resolveHost ?? defaultResolveHost
   let current = input
   for (let hop = 0; hop <= options.maxRedirects; hop += 1) {
-    const safeUrl = await assertSafeHttpUrl(current, resolver)
+    const safeTarget = await resolveSafeHttpTarget(current, resolver)
+    const safeUrl = safeTarget.url
     const deadline = AbortSignal.timeout(options.timeoutMs)
     const signal = options.signal === undefined ? deadline : AbortSignal.any([options.signal, deadline])
     let response: Response
@@ -158,7 +220,7 @@ export async function fetchSafeText(input: string, options: SafeRequestOptions):
         redirect: 'manual',
         ...(options.headers === undefined ? {} : { headers: options.headers }),
         signal,
-      })
+      }, safeTarget.addresses)
     } catch (error) {
       if (signal.aborted) throw new NetworkGuardError('timeout', 'The citation request timed out or was cancelled.')
       throw new NetworkGuardError('http-error', error instanceof Error ? error.message : 'The citation request failed.')
@@ -171,6 +233,7 @@ export async function fetchSafeText(input: string, options: SafeRequestOptions):
       if (safeUrl.protocol === 'https:' && target.protocol === 'http:') {
         throw new NetworkGuardError('blocked-host', 'HTTPS citation redirects may not downgrade to HTTP.')
       }
+      await response.body?.cancel()
       current = target.href
       continue
     }

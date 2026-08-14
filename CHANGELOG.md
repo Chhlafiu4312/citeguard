@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 - 2026-08-14
+
+- Pinned production HTTP(S) connections to the exact public DNS address set that passed SSRF validation.
+- Revalidated and independently pinned every redirect hop.
+- Added regression coverage for address-set propagation and per-hop DNS pinning.
+
 ## 0.1.0
 
 - Added DOI, arXiv, URL, and Markdown citation extraction and normalization.
