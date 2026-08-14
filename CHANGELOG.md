@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.7 - 2026-08-15
+
+- Reused one end-to-end deadline across DNS resolution, every redirect hop, transport, and complete response-body consumption, even when an injected transport ignores cancellation.
+- Cancelled the bodies of responses that arrive after their caller has already timed out.
+- Prevented redirect chains from multiplying the configured timeout budget.
+- Cancelled redirect response bodies before validating missing, malformed, disallowed, or over-limit targets.
+- Classified malformed redirect locations as stable `invalid-url` policy failures.
+- Added regression coverage for cumulative redirect delays, slow DNS, unsafe redirects, malformed locations, and body cancellation.
+
 ## 0.1.6 - 2026-08-15
 
 - Added exact request host allow-lists that are enforced before DNS resolution on every redirect hop.
