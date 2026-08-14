@@ -3,7 +3,7 @@
 import { lookup } from 'node:dns/promises'
 import { request as requestHttp } from 'node:http'
 import { request as requestHttps } from 'node:https'
-import { isIP, type LookupFunction } from 'node:net'
+import { BlockList, isIP, type LookupFunction } from 'node:net'
 import { Readable } from 'node:stream'
 
 /** Stable failure categories exposed in verification receipts. */
@@ -52,33 +52,60 @@ interface SafeHttpTarget {
   readonly addresses: readonly string[]
 }
 
-function publicIpv4(address: string): boolean {
-  const octets = address.split('.').map(Number)
-  if (octets.length !== 4 || octets.some(value => !Number.isInteger(value) || value < 0 || value > 255)) return false
-  const [a = 0, b = 0, c = 0] = octets
-  if (a === 0 || a === 10 || a === 127 || a >= 224) return false
-  if (a === 100 && b >= 64 && b <= 127) return false
-  if (a === 169 && b === 254) return false
-  if (a === 172 && b >= 16 && b <= 31) return false
-  if (a === 192 && ((b === 0 && (c === 0 || c === 2)) || b === 168)) return false
-  if (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) return false
-  if (a === 203 && b === 0 && c === 113) return false
-  return true
-}
+const NON_PUBLIC_IPV4 = new BlockList()
+const NON_PUBLIC_IPV6 = new BlockList()
 
-function publicIpv6(address: string): boolean {
-  const value = address.toLowerCase().replace(/^\[|\]$/gu, '')
-  if (value === '::' || value === '::1') return false
-  if (value.startsWith('fc') || value.startsWith('fd') || /^fe[89ab]/u.test(value)) return false
-  if (value.startsWith('ff') || value.startsWith('2001:db8:') || value.startsWith('::ffff:')) return false
-  return true
-}
+// Maintain these conservative SSRF deny-lists against the IANA IPv4 and IPv6
+// Special-Purpose Address Registries. Globally reachable exceptions such as
+// 192.0.0.9/32, 192.0.0.10/32, and 2001:3::/32 intentionally remain allowed.
+for (const [network, prefix] of [
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 29],
+  ['192.0.0.8', 32],
+  ['192.0.2.0', 24],
+  ['192.88.99.0', 24],
+  ['192.168.0.0', 16],
+  ['198.18.0.0', 15],
+  ['198.51.100.0', 24],
+  ['203.0.113.0', 24],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
+] as const) NON_PUBLIC_IPV4.addSubnet(network, prefix, 'ipv4')
+NON_PUBLIC_IPV4.addRange('192.0.0.11', '192.0.0.255', 'ipv4')
+
+for (const [network, prefix] of [
+  ['::', 96],
+  ['::', 128],
+  ['::1', 128],
+  ['::ffff:0.0.0.0', 96],
+  ['64:ff9b::', 96],
+  ['64:ff9b:1::', 48],
+  ['100::', 64],
+  ['100:0:0:1::', 64],
+  ['2001::', 32],
+  ['2001:2::', 48],
+  ['2001:10::', 28],
+  ['2001:db8::', 32],
+  ['2002::', 16],
+  ['3fff::', 20],
+  ['5f00::', 16],
+  ['fc00::', 7],
+  ['fe80::', 10],
+  ['fec0::', 10],
+  ['ff00::', 8],
+] as const) NON_PUBLIC_IPV6.addSubnet(network, prefix, 'ipv6')
 
 /** Return whether an address is globally routable enough for arbitrary citation checks. */
 export function isPublicAddress(address: string): boolean {
-  const family = isIP(address)
-  if (family === 4) return publicIpv4(address)
-  if (family === 6) return publicIpv6(address)
+  const normalized = address.toLowerCase().replace(/^\[|\]$/gu, '')
+  const family = isIP(normalized)
+  if (family === 4) return !NON_PUBLIC_IPV4.check(normalized, 'ipv4')
+  if (family === 6) return !NON_PUBLIC_IPV6.check(normalized, 'ipv6')
   return false
 }
 
@@ -175,24 +202,39 @@ async function fetchPinned(input: string, init: RequestInit, addresses: readonly
   })
 }
 
-async function boundedText(response: Response, maximum: number): Promise<string> {
+async function readChunk(reader: ReadableStreamDefaultReader<Uint8Array>, signal: AbortSignal): Promise<ReadableStreamReadResult<Uint8Array>> {
+  if (signal.aborted) throw new NetworkGuardError('timeout', 'The citation request timed out or was cancelled.')
+  return await new Promise((resolve, reject) => {
+    const aborted = () => reject(new NetworkGuardError('timeout', 'The citation request timed out or was cancelled.'))
+    signal.addEventListener('abort', aborted, { once: true })
+    reader.read().then(resolve, reject).finally(() => signal.removeEventListener('abort', aborted))
+  })
+}
+
+async function boundedText(response: Response, maximum: number, signal: AbortSignal): Promise<string> {
   const declared = Number(response.headers.get('content-length'))
   if (Number.isFinite(declared) && declared > maximum) {
+    await response.body?.cancel()
     throw new NetworkGuardError('response-too-large', `Response exceeds the ${maximum}-byte limit.`)
   }
   if (response.body === null) return ''
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
   let total = 0
-  while (true) {
-    const part = await reader.read()
-    if (part.done) break
-    total += part.value.byteLength
-    if (total > maximum) {
-      await reader.cancel()
-      throw new NetworkGuardError('response-too-large', `Response exceeds the ${maximum}-byte limit.`)
+  try {
+    while (true) {
+      const part = await readChunk(reader, signal)
+      if (part.done) break
+      total += part.value.byteLength
+      if (total > maximum) {
+        await reader.cancel()
+        throw new NetworkGuardError('response-too-large', `Response exceeds the ${maximum}-byte limit.`)
+      }
+      chunks.push(part.value)
     }
-    chunks.push(part.value)
+  } catch (error) {
+    await reader.cancel().catch(() => undefined)
+    throw error
   }
   const joined = new Uint8Array(total)
   let offset = 0
@@ -237,12 +279,15 @@ export async function fetchSafeText(input: string, options: SafeRequestOptions):
       current = target.href
       continue
     }
-    if (!response.ok) throw new NetworkGuardError('http-error', `Citation provider returned HTTP ${response.status}.`)
+    if (!response.ok) {
+      await response.body?.cancel()
+      throw new NetworkGuardError('http-error', `Citation provider returned HTTP ${response.status}.`)
+    }
     return {
       finalUrl: safeUrl.href,
       status: response.status,
       contentType: response.headers.get('content-type') ?? '',
-      text: await boundedText(response, options.maxResponseBytes),
+      text: await boundedText(response, options.maxResponseBytes, signal),
     }
   }
   throw new NetworkGuardError('too-many-redirects', 'Citation URL exceeded the redirect limit.')

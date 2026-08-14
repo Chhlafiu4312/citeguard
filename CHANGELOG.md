@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5 - 2026-08-15
+
+- Replaced textual IPv6 prefix checks with canonical subnet matching, covering expanded loopback, unspecified, mapped, transition, local, and documentation address forms.
+- Expanded conservative IPv4 special-purpose range rejection for arbitrary URL verification.
+- Applied request deadlines through complete response-body consumption, including injected transport implementations.
+- Cancelled oversized and unsuccessful response bodies to release sockets and streams promptly.
+- Added regression coverage for IPv4/IPv6 bypass forms, stalled bodies, and error-body cancellation.
+
 ## 0.1.4 - 2026-08-15
 
 - Replaced the Markdown-link regular expression with a bounded linear scanner to eliminate polynomial backtracking on adversarial input.

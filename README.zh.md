@@ -26,7 +26,7 @@ AI 生成的引用可能以不同方式出错：标识符格式错误、论文�
 - 通过固定 Crossref API 核验 DOI，通过固定 arXiv API 核验预印本元数据。
 - 对带描述性标题的 Markdown 链接进行标题相似度检查。
 - 只有显式设置 `networkMode=full` 才会请求普通 URL。
-- SSRF 防护：仅允许 HTTP(S)、拒绝 URL 凭据和私有/保留地址、检查全部 DNS 答案、逐跳检查重定向、限制超时与响应体大小。
+- SSRF 防护：仅允许 HTTP(S)、拒绝 URL 凭据、按规范子网拒绝 IPv4/IPv6 私有及特殊地址、检查全部 DNS 答案、逐跳检查重定向，并对完整响应体执行超时与大小限制。
 - 提供 `citeguard_check` Harness 工具、独立 CLI、稳定 JSON 回执和 TypeScript API。
 - 限制单次输入与引用数量，避免草稿触发无界网络请求。
 
@@ -56,7 +56,7 @@ node lib/cli.js --file draft.md --full --json --fail-on mismatch,unreachable,blo
 源码已经发布到 GitHub，npm 包尚未发布。请在本机终端中运行以下命令，不要粘贴到 Harness 的聊天输入框中；无需预先全局安装 `dsh`。
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.4/dsh-citeguard-0.1.4.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.5/dsh-citeguard-0.1.5.tgz
 npx -y @deepseek-ai/dsh --profile web --dump-config
 
 # 安装后重启正在运行的 Web UI。
@@ -64,7 +64,7 @@ npx -y @deepseek-ai/dsh web
 
 # 或构建并安装本地 tarball。
 pnpm pack
-npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.4.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.5.tgz
 ```
 
 以上命令会安装到 Web UI 使用的 `web` profile；如果只使用终端模式，请把 `web` 替换为 `headless`。包内的 [cordis.patch.yml](cordis.patch.yml) 会注册 `citeguard`。可选的 `dsh-citeguard/invariant` companion 保留给显式挂载 Harness `invariants` 服务的自定义 profile；官方 `headless` 与 `web` profile 默认不挂载该服务。激活后的工具是 `citeguard_check({ text, online? })`。
@@ -89,7 +89,7 @@ npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.4.tgz
 |---|---:|---|
 | `enabled` | `true` | 注册 `citeguard_check` 工具。 |
 | `networkMode` | `metadata` | `off`、固定提供方 `metadata` 或 SSRF 检查后的 `full`。 |
-| `timeoutMs` | `8000` | 单次请求时限。 |
+| `timeoutMs` | `8000` | 覆盖响应头和完整响应体读取的单次请求时限。 |
 | `maxResponseBytes` | `1048576` | 最大响应体。 |
 | `maxRedirects` | `4` | 最多允许的逐跳验证重定向次数。 |
 | `minTitleSimilarity` | `0.55` | 显式标题标签所需的词集合相似度。 |
@@ -122,6 +122,6 @@ pnpm run build
 
 `full` 模式会逐个验证重定向目标，并把连接固定到已经通过校验的公网 DNS 地址集合，避免校验后再次解析产生的 DNS 重绑定竞态。自定义 fetch transport 必须只连接第三个参数收到的已验证地址集合；内置 transport 会强制执行这一约束。
 
-测试全部使用确定性假提供方，不会发起真实网络请求。`0.1.4` 增加了 CodeQL 驱动的提取安全加固与自动供应链校验，并发布于 [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard)。Release tarball 同时提供 SHA-256 校验文件和 GitHub 构建来源证明。包仍保持 `private: true`，不会发布到 npm。
+测试全部使用确定性假提供方，不会发起真实网络请求。`0.1.5` 增加了规范化 IPv4/IPv6 SSRF 防护、完整响应体截止时间和异常响应资源回收，并发布于 [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard)。Release tarball 同时提供 SHA-256 校验文件和 GitHub 构建来源证明。包仍保持 `private: true`，不会发布到 npm。
 
 采用 BSD-3-Clause 许可证，详见 [LICENSE](LICENSE)。
