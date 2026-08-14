@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4 - 2026-08-15
+
+- Replaced the Markdown-link regular expression with a bounded linear scanner to eliminate polynomial backtracking on adversarial input.
+- Changed XML entity handling to decode exactly one layer and prevent double-unescaping provider metadata.
+- Ignored malformed percent-encoded DOI links without aborting the full citation scan.
+- Added regression coverage for adversarial incomplete links, one-layer XML decoding, and malformed DOI paths.
+
 ## 0.1.3 - 2026-08-15
 
 - Resolved packed release archives to absolute paths before the Harness clean-profile smoke install.
