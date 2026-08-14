@@ -56,7 +56,7 @@ Exit codes are `0` for success, `1` when a requested `--fail-on` status occurs, 
 The source is published on GitHub. The npm package remains unpublished.
 
 ```sh
-dsh plugin --profile headless add github:Chhlafiu4312/citeguard#v0.1.0
+dsh plugin --profile headless add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.0/dsh-citeguard-0.1.0.tgz
 dsh --profile headless --dump-config
 
 # Or build and install a local tarball.

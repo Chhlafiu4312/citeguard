@@ -56,7 +56,7 @@ node lib/cli.js --file draft.md --full --json --fail-on mismatch,unreachable,blo
 源码已经发布到 GitHub，npm 包尚未发布。
 
 ```sh
-dsh plugin --profile headless add github:Chhlafiu4312/citeguard#v0.1.0
+dsh plugin --profile headless add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.0/dsh-citeguard-0.1.0.tgz
 dsh --profile headless --dump-config
 
 # 或构建并安装本地 tarball。
