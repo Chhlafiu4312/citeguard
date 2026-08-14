@@ -34,7 +34,7 @@ The precise evidence contract is documented in [docs/design.md](docs/design.md).
 
 ## Quick start
 
-Requirements: Node.js 22.19 or newer and pnpm.
+Requirements for building from source: Node.js 22.19 or newer and pnpm.
 
 ```sh
 pnpm install
@@ -53,18 +53,21 @@ Exit codes are `0` for success, `1` when a requested `--fail-on` status occurs, 
 
 ## DeepSeek Harness installation
 
-The source is published on GitHub. The npm package remains unpublished.
+The source is published on GitHub. The npm package remains unpublished. Run these commands in a local terminal, not in the Harness chat input. A global `dsh` command is not required.
 
 ```sh
-dsh plugin --profile headless add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.0/dsh-citeguard-0.1.0.tgz
-dsh --profile headless --dump-config
+npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.0/dsh-citeguard-0.1.0.tgz
+npx -y @deepseek-ai/dsh --profile web --dump-config
+
+# Restart a running Web UI after installation.
+npx -y @deepseek-ai/dsh web
 
 # Or build and install a local tarball.
 pnpm pack
-dsh plugin --profile headless add ./dsh-citeguard-0.1.0.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.0.tgz
 ```
 
-The package contributes [cordis.patch.yml](cordis.patch.yml), which registers `citeguard`. The same bundle can be installed into the `web` profile. An optional `dsh-citeguard/invariant` companion remains available for custom profiles that mount the Harness `invariants` service; the stock `headless` and `web` profiles do not mount it.
+The commands above install into the Web UI's `web` profile. For terminal-only use, replace `web` with `headless`. The package contributes [cordis.patch.yml](cordis.patch.yml), which registers `citeguard`. An optional `dsh-citeguard/invariant` companion remains available for custom profiles that mount the Harness `invariants` service; the stock `headless` and `web` profiles do not mount it.
 
 Once active, the Harness tool is:
 
