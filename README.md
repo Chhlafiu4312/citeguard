@@ -56,7 +56,7 @@ Exit codes are `0` for success, `1` when a requested `--fail-on` status occurs, 
 The source is published on GitHub. The npm package remains unpublished. Run these commands in a local terminal, not in the Harness chat input. A global `dsh` command is not required.
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.2/dsh-citeguard-0.1.2.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.3/dsh-citeguard-0.1.3.tgz
 npx -y @deepseek-ai/dsh --profile web --dump-config
 
 # Restart a running Web UI after installation.
@@ -64,7 +64,7 @@ npx -y @deepseek-ai/dsh web
 
 # Or build and install a local tarball.
 pnpm pack
-npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.2.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.3.tgz
 ```
 
 The commands above install into the Web UI's `web` profile. For terminal-only use, replace `web` with `headless`. The package contributes [cordis.patch.yml](cordis.patch.yml), which registers `citeguard`. An optional `dsh-citeguard/invariant` companion remains available for custom profiles that mount the Harness `invariants` service; the stock `headless` and `web` profiles do not mount it.
@@ -144,6 +144,6 @@ Tests use deterministic fake providers and make no real network requests. They c
 
 ## Status
 
-Version `0.1.2` adds automated supply-chain verification and is published at [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard). Release tarballs include a SHA-256 checksum and GitHub build-provenance attestation. The package remains `private: true`; no npm registry publication is performed by the build.
+Version `0.1.3` adds automated supply-chain verification and is published at [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard). Release tarballs include a SHA-256 checksum and GitHub build-provenance attestation. The package remains `private: true`; no npm registry publication is performed by the build.
 
 BSD-3-Clause licensed. See [LICENSE](LICENSE).
