@@ -10,6 +10,17 @@ describe('safe citation transport', () => {
     expect(isPublicAddress('169.254.169.254')).toBe(false)
     expect(isPublicAddress('::1')).toBe(false)
     expect(isPublicAddress('2001:4860:4860::8888')).toBe(true)
+    expect(isPublicAddress('0:0:0:0:0:0:0:1')).toBe(false)
+    expect(isPublicAddress('0:0:0:0:0:0:0:0')).toBe(false)
+    expect(isPublicAddress('fec0::1')).toBe(false)
+    expect(isPublicAddress('2002:7f00:1::')).toBe(false)
+    expect(isPublicAddress('0:0:0:0:0:ffff:7f00:1')).toBe(false)
+    expect(isPublicAddress('192.0.0.8')).toBe(false)
+    expect(isPublicAddress('192.0.0.9')).toBe(true)
+    expect(isPublicAddress('192.88.99.1')).toBe(false)
+    expect(isPublicAddress('100:0:0:1::1')).toBe(false)
+    expect(isPublicAddress('5f00::1')).toBe(false)
+    expect(isPublicAddress('2001:3::1')).toBe(true)
   })
 
   it('rejects local names, credentials, and private DNS answers', async () => {
@@ -110,5 +121,38 @@ describe('safe citation transport', () => {
       maxRedirects: 0,
     })
     expect(result.text).toContain('Example')
+  })
+
+  it('applies the deadline while reading a stalled response body', async () => {
+    const stalled = async (): Promise<Response> => new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('partial'))
+      },
+    }))
+
+    await expect(fetchSafeText('https://example.com/paper', {
+      fetcher: stalled,
+      resolveHost: publicDns,
+      timeoutMs: 25,
+      maxResponseBytes: 10_000,
+      maxRedirects: 0,
+    })).rejects.toMatchObject({ code: 'timeout' })
+  })
+
+  it('cancels rejected response bodies', async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true
+      },
+    })
+    await expect(fetchSafeText('https://example.com/paper', {
+      fetcher: async () => new Response(body, { status: 503 }),
+      resolveHost: publicDns,
+      timeoutMs: 1_000,
+      maxResponseBytes: 10_000,
+      maxRedirects: 0,
+    })).rejects.toMatchObject({ code: 'http-error' })
+    expect(cancelled).toBe(true)
   })
 })

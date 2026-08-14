@@ -26,7 +26,7 @@ draft ──> extract + normalize ──> offline validation ──> bounded pro
 - DOI metadata from the fixed Crossref API and arXiv metadata from the fixed arXiv API.
 - Explicit title-similarity mismatch detection for descriptive Markdown links.
 - Arbitrary URL checks only when `networkMode=full` is explicitly enabled.
-- SSRF defenses: HTTP-only schemes, no URL credentials, private/reserved IP rejection, DNS answer validation, per-redirect validation, redirect caps, timeouts, and response-size limits.
+- SSRF defenses: HTTP-only schemes, no URL credentials, canonical IPv4/IPv6 private and special-purpose range rejection, DNS answer validation, per-redirect validation, redirect caps, full-body deadlines, and response-size limits.
 - A model-callable `citeguard_check` tool, standalone CLI, stable JSON receipt, and reusable TypeScript API.
 - Citation and input caps that prevent a draft from causing unbounded network work.
 
@@ -56,7 +56,7 @@ Exit codes are `0` for success, `1` when a requested `--fail-on` status occurs, 
 The source is published on GitHub. The npm package remains unpublished. Run these commands in a local terminal, not in the Harness chat input. A global `dsh` command is not required.
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.4/dsh-citeguard-0.1.4.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.5/dsh-citeguard-0.1.5.tgz
 npx -y @deepseek-ai/dsh --profile web --dump-config
 
 # Restart a running Web UI after installation.
@@ -64,7 +64,7 @@ npx -y @deepseek-ai/dsh web
 
 # Or build and install a local tarball.
 pnpm pack
-npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.4.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.5.tgz
 ```
 
 The commands above install into the Web UI's `web` profile. For terminal-only use, replace `web` with `headless`. The package contributes [cordis.patch.yml](cordis.patch.yml), which registers `citeguard`. An optional `dsh-citeguard/invariant` companion remains available for custom profiles that mount the Harness `invariants` service; the stock `headless` and `web` profiles do not mount it.
@@ -97,7 +97,7 @@ None of these statuses proves semantic entailment, research quality, or factual 
 |---|---:|---|
 | `enabled` | `true` | Register the `citeguard_check` tool. |
 | `networkMode` | `metadata` | `off`, fixed-provider `metadata`, or SSRF-checked `full`. |
-| `timeoutMs` | `8000` | Per-request deadline. |
+| `timeoutMs` | `8000` | Per-request deadline covering headers and complete response-body consumption. |
 | `maxResponseBytes` | `1048576` | Maximum accepted response body. |
 | `maxRedirects` | `4` | Maximum validated redirects. |
 | `minTitleSimilarity` | `0.55` | Token-set similarity required for an explicit title label. |
@@ -121,6 +121,8 @@ Network and extraction helpers are also exported at `dsh-citeguard/network` and 
 
 - `metadata` mode contacts only Crossref and arXiv provider hosts; arbitrary URLs remain unrequested.
 - `full` mode is opt-in, validates every redirect target, and pins each connection to the exact public DNS answer set that passed validation.
+- IPv4 and IPv6 literals and DNS answers are checked against canonical special-purpose subnets, including mapped and transition forms.
+- Oversized, unsuccessful, cancelled, and timed-out response bodies are closed rather than left consuming a socket.
 - Custom injected fetch transports must connect only to the validated address set passed as their third argument; the built-in transport enforces this invariant.
 - DNS validation and connection pinning reduce SSRF risk but cannot make remote content trustworthy.
 - HTML parsing is intentionally shallow and does not execute scripts.
@@ -144,6 +146,6 @@ Tests use deterministic fake providers and make no real network requests. They c
 
 ## Status
 
-Version `0.1.4` adds CodeQL-driven extraction hardening and automated supply-chain verification and is published at [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard). Release tarballs include a SHA-256 checksum and GitHub build-provenance attestation. The package remains `private: true`; no npm registry publication is performed by the build.
+Version `0.1.5` hardens canonical IPv4/IPv6 SSRF checks and enforces deadlines through response-body consumption and is published at [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard). Release tarballs include a SHA-256 checksum and GitHub build-provenance attestation. The package remains `private: true`; no npm registry publication is performed by the build.
 
 BSD-3-Clause licensed. See [LICENSE](LICENSE).
