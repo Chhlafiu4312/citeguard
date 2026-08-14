@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6 - 2026-08-15
+
+- Added exact request host allow-lists that are enforced before DNS resolution on every redirect hop.
+- Locked Crossref and arXiv metadata requests to their configured provider hosts instead of following cross-provider redirects.
+- Kept arbitrary public redirects available only in explicitly enabled `full` mode under existing per-hop SSRF validation.
+- Added transport- and verifier-level regression coverage for same-host and unrelated-host redirects.
+
 ## 0.1.5 - 2026-08-15
 
 - Replaced textual IPv6 prefix checks with canonical subnet matching, covering expanded loopback, unspecified, mapped, transition, local, and documentation address forms.

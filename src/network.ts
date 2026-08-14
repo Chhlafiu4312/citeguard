@@ -32,6 +32,8 @@ export interface SafeRequestOptions {
   readonly maxRedirects: number
   readonly signal?: AbortSignal
   readonly headers?: Readonly<Record<string, string>>
+  /** Optional exact host allow-list, enforced again on every redirect hop. */
+  readonly allowedHosts?: readonly string[]
 }
 
 /** Text response returned only after all policy checks pass. */
@@ -109,7 +111,7 @@ export function isPublicAddress(address: string): boolean {
   return false
 }
 
-async function resolveSafeHttpTarget(input: string, resolver: ResolveHost): Promise<SafeHttpTarget> {
+async function resolveSafeHttpTarget(input: string, resolver: ResolveHost, allowedHosts?: ReadonlySet<string>): Promise<SafeHttpTarget> {
   let url: URL
   try {
     url = new URL(input)
@@ -123,6 +125,9 @@ async function resolveSafeHttpTarget(input: string, resolver: ResolveHost): Prom
     throw new NetworkGuardError('blocked-host', 'Credentials in citation URLs are not allowed.')
   }
   const hostname = url.hostname.toLowerCase().replace(/\.$/u, '')
+  if (allowedHosts !== undefined && !allowedHosts.has(hostname)) {
+    throw new NetworkGuardError('blocked-host', 'The citation host is not permitted by this request policy.')
+  }
   if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
     throw new NetworkGuardError('blocked-host', 'Local host names are not allowed.')
   }
@@ -249,9 +254,12 @@ async function boundedText(response: Response, maximum: number, signal: AbortSig
 export async function fetchSafeText(input: string, options: SafeRequestOptions): Promise<SafeTextResponse> {
   const fetcher = options.fetcher ?? fetchPinned
   const resolver = options.resolveHost ?? defaultResolveHost
+  const allowedHosts = options.allowedHosts === undefined
+    ? undefined
+    : new Set(options.allowedHosts.map(host => host.toLowerCase().replace(/\.$/u, '')))
   let current = input
   for (let hop = 0; hop <= options.maxRedirects; hop += 1) {
-    const safeTarget = await resolveSafeHttpTarget(current, resolver)
+    const safeTarget = await resolveSafeHttpTarget(current, resolver, allowedHosts)
     const safeUrl = safeTarget.url
     const deadline = AbortSignal.timeout(options.timeoutMs)
     const signal = options.signal === undefined ? deadline : AbortSignal.any([options.signal, deadline])

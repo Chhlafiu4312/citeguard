@@ -23,7 +23,7 @@ draft ──> extract + normalize ──> offline validation ──> bounded pro
 
 - DOI, arXiv, HTTP URL, and Markdown-link extraction with normalization and deduplication.
 - Stable line, column, context, and same-sentence proximity associations for every citation.
-- DOI metadata from the fixed Crossref API and arXiv metadata from the fixed arXiv API.
+- DOI metadata from the fixed Crossref API and arXiv metadata from the fixed arXiv API, with redirects locked to the original provider host.
 - Explicit title-similarity mismatch detection for descriptive Markdown links.
 - Arbitrary URL checks only when `networkMode=full` is explicitly enabled.
 - SSRF defenses: HTTP-only schemes, no URL credentials, canonical IPv4/IPv6 private and special-purpose range rejection, DNS answer validation, per-redirect validation, redirect caps, full-body deadlines, and response-size limits.
@@ -56,7 +56,7 @@ Exit codes are `0` for success, `1` when a requested `--fail-on` status occurs, 
 The source is published on GitHub. The npm package remains unpublished. Run these commands in a local terminal, not in the Harness chat input. A global `dsh` command is not required.
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.5/dsh-citeguard-0.1.5.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.6/dsh-citeguard-0.1.6.tgz
 npx -y @deepseek-ai/dsh --profile web --dump-config
 
 # Restart a running Web UI after installation.
@@ -64,7 +64,7 @@ npx -y @deepseek-ai/dsh web
 
 # Or build and install a local tarball.
 pnpm pack
-npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.5.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.6.tgz
 ```
 
 The commands above install into the Web UI's `web` profile. For terminal-only use, replace `web` with `headless`. The package contributes [cordis.patch.yml](cordis.patch.yml), which registers `citeguard`. An optional `dsh-citeguard/invariant` companion remains available for custom profiles that mount the Harness `invariants` service; the stock `headless` and `web` profiles do not mount it.
@@ -119,7 +119,7 @@ Network and extraction helpers are also exported at `dsh-citeguard/network` and 
 
 ## Security and limitations
 
-- `metadata` mode contacts only Crossref and arXiv provider hosts; arbitrary URLs remain unrequested.
+- `metadata` mode contacts only Crossref and arXiv provider hosts; exact host allow-lists reject cross-provider redirects before DNS resolution, and arbitrary URLs remain unrequested.
 - `full` mode is opt-in, validates every redirect target, and pins each connection to the exact public DNS answer set that passed validation.
 - IPv4 and IPv6 literals and DNS answers are checked against canonical special-purpose subnets, including mapped and transition forms.
 - Oversized, unsuccessful, cancelled, and timed-out response bodies are closed rather than left consuming a socket.
@@ -142,10 +142,10 @@ pnpm run prepare
 pnpm run build
 ```
 
-Tests use deterministic fake providers and make no real network requests. They cover extraction, deduplication, title checks, status wording, SSRF rejection, redirect validation, size limits, Loader exports, registration disposal, and CLI behavior. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Tests use deterministic fake providers and make no real network requests. They cover extraction, deduplication, title checks, status wording, SSRF rejection, provider host locking, redirect validation, size limits, Loader exports, registration disposal, and CLI behavior. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Status
 
-Version `0.1.5` hardens canonical IPv4/IPv6 SSRF checks and enforces deadlines through response-body consumption and is published at [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard). Release tarballs include a SHA-256 checksum and GitHub build-provenance attestation. The package remains `private: true`; no npm registry publication is performed by the build.
+Version `0.1.6` locks metadata redirects to the configured Crossref and arXiv provider hosts and is published at [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard). Release tarballs include a SHA-256 checksum and GitHub build-provenance attestation. The package remains `private: true`; no npm registry publication is performed by the build.
 
 BSD-3-Clause licensed. See [LICENSE](LICENSE).

@@ -16,7 +16,7 @@ CiteGuard extracts machine-verifiable citations from AI-generated text, validate
 
 ## Network defaults
 
-Offline extraction is always available. DOI and arXiv metadata use fixed provider hosts when enabled. Arbitrary URL verification is disabled by default and, when enabled, rejects credentials in URLs, non-HTTP protocols, loopback names, canonical IPv4/IPv6 private or special-purpose subnets, unsafe redirects, and responses over configured byte limits. The request deadline remains active through complete response-body consumption, and rejected bodies are cancelled to release their underlying streams.
+Offline extraction is always available. DOI and arXiv metadata use fixed provider hosts when enabled, and exact host allow-lists are enforced before DNS resolution on every redirect hop. Arbitrary URL verification is disabled by default and, when enabled, rejects credentials in URLs, non-HTTP protocols, loopback names, canonical IPv4/IPv6 private or special-purpose subnets, unsafe redirects, and responses over configured byte limits. The request deadline remains active through complete response-body consumption, and rejected bodies are cancelled to release their underlying streams.
 
 ## Verification language
 
@@ -28,4 +28,4 @@ The stock bundle does not install a runtime invariant. CiteGuard performs indepe
 
 ## Evidence
 
-Unit tests cover DOI, arXiv, URL, Markdown, deduplication, title comparison, canonical IPv4/IPv6 SSRF rejection, redirect validation, body deadlines, stream cancellation, and report wording. Cordis tests cover registration and disposal. Stable CLI output has snapshots. A package check covers self-containment, types, tests, build, and archive contents.
+Unit tests cover DOI, arXiv, URL, Markdown, deduplication, title comparison, canonical IPv4/IPv6 SSRF rejection, provider host locking, redirect validation, body deadlines, stream cancellation, and report wording. Cordis tests cover registration and disposal. Stable CLI output has snapshots. A package check covers self-containment, types, tests, build, and archive contents.
