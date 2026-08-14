@@ -56,7 +56,7 @@ Exit codes are `0` for success, `1` when a requested `--fail-on` status occurs, 
 The source is published on GitHub. The npm package remains unpublished. Run these commands in a local terminal, not in the Harness chat input. A global `dsh` command is not required.
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.0/dsh-citeguard-0.1.0.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add https://github.com/Chhlafiu4312/citeguard/releases/download/v0.1.1/dsh-citeguard-0.1.1.tgz
 npx -y @deepseek-ai/dsh --profile web --dump-config
 
 # Restart a running Web UI after installation.
@@ -64,7 +64,7 @@ npx -y @deepseek-ai/dsh web
 
 # Or build and install a local tarball.
 pnpm pack
-npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.0.tgz
+npx -y @deepseek-ai/dsh plugin --profile web add ./dsh-citeguard-0.1.1.tgz
 ```
 
 The commands above install into the Web UI's `web` profile. For terminal-only use, replace `web` with `headless`. The package contributes [cordis.patch.yml](cordis.patch.yml), which registers `citeguard`. An optional `dsh-citeguard/invariant` companion remains available for custom profiles that mount the Harness `invariants` service; the stock `headless` and `web` profiles do not mount it.
@@ -120,8 +120,9 @@ Network and extraction helpers are also exported at `dsh-citeguard/network` and 
 ## Security and limitations
 
 - `metadata` mode contacts only Crossref and arXiv provider hosts; arbitrary URLs remain unrequested.
-- `full` mode is opt-in and validates every redirect target before sending the next request.
-- DNS validation reduces SSRF risk but cannot make remote content trustworthy.
+- `full` mode is opt-in, validates every redirect target, and pins each connection to the exact public DNS answer set that passed validation.
+- Custom injected fetch transports must connect only to the validated address set passed as their third argument; the built-in transport enforces this invariant.
+- DNS validation and connection pinning reduce SSRF risk but cannot make remote content trustworthy.
 - HTML parsing is intentionally shallow and does not execute scripts.
 - Crossref and arXiv availability, rate limits, and metadata quality are outside CiteGuard's control.
 - Title token overlap is a mismatch signal, not an authorship or plagiarism judgment.
@@ -143,6 +144,6 @@ Tests use deterministic fake providers and make no real network requests. They c
 
 ## Status
 
-Version `0.1.0` is an independently tested MVP published at [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard). The package remains `private: true`; no npm registry publication is performed by the build.
+Version `0.1.1` is an independently tested security update published at [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard). The package remains `private: true`; no npm registry publication is performed by the build.
 
 BSD-3-Clause licensed. See [LICENSE](LICENSE).

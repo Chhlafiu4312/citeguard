@@ -30,6 +30,45 @@ describe('safe citation transport', () => {
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
+  it('passes the validated DNS answer set to the connection transport', async () => {
+    const fetcher = vi.fn(async (_url: string, _init: RequestInit, addresses: readonly string[]) => {
+      expect(addresses).toEqual(['93.184.216.34'])
+      return new Response('ok')
+    })
+    const result = await fetchSafeText('https://example.com/paper', {
+      fetcher,
+      resolveHost: publicDns,
+      timeoutMs: 1_000,
+      maxResponseBytes: 10_000,
+      maxRedirects: 0,
+    })
+    expect(result.text).toBe('ok')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('pins each redirect hop to its independently validated addresses', async () => {
+    const resolveHost = vi.fn(async (hostname: string): Promise<readonly string[]> => hostname === 'one.example'
+      ? ['8.8.8.8']
+      : ['1.1.1.1'])
+    const observed: string[][] = []
+    const fetcher = vi.fn(async (url: string, _init: RequestInit, addresses: readonly string[]) => {
+      observed.push([...addresses])
+      return url.includes('one.example')
+        ? new Response('', { status: 302, headers: { location: 'https://two.example/paper' } })
+        : new Response('done')
+    })
+    const result = await fetchSafeText('https://one.example/start', {
+      fetcher,
+      resolveHost,
+      timeoutMs: 1_000,
+      maxResponseBytes: 10_000,
+      maxRedirects: 2,
+    })
+    expect(result.text).toBe('done')
+    expect(observed).toEqual([['8.8.8.8'], ['1.1.1.1']])
+    expect(resolveHost).toHaveBeenCalledTimes(2)
+  })
+
   it('rejects HTTPS-to-HTTP redirect downgrades', async () => {
     const fetcher = vi.fn(async () => new Response('', { status: 302, headers: { location: 'http://example.com/plain' } }))
     await expect(fetchSafeText('https://example.com/paper', {
