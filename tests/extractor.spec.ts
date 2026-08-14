@@ -33,4 +33,19 @@ describe('citation extraction', () => {
     const report = extractCitations('[source](https://example.com/paper)')
     expect(report.citations[0]?.expectedTitle).toBeNull()
   })
+
+  it('handles adversarial incomplete Markdown links without regex backtracking', () => {
+    const adversarial = '[!](http://'.repeat(10_000)
+    const report = extractCitations(`${adversarial} \n[Valid Paper](https://example.com/paper)`)
+    expect(report.citations).toHaveLength(1)
+    expect(report.citations[0]).toMatchObject({
+      kind: 'url',
+      normalized: 'https://example.com/paper',
+      expectedTitle: 'Valid Paper',
+    })
+  })
+
+  it('ignores malformed percent-encoded DOI links instead of throwing', () => {
+    expect(extractCitations('[bad DOI](https://doi.org/10.1234/%E0%A4%A)').citations).toEqual([])
+  })
 })

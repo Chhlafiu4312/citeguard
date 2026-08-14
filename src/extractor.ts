@@ -44,10 +44,67 @@ interface Candidate {
   end: number
 }
 
-const MARKDOWN_LINK = /\[([^\]\n]{1,500})\]\((https?:\/\/[^\s)]+)\)/giu
+interface MarkdownLink {
+  readonly label: string
+  readonly target: string
+  readonly raw: string
+  readonly start: number
+  readonly end: number
+}
+
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/giu
 const DOI_PATTERN = /\b10\.\d{4,9}\/[-._;()/:A-Z0-9]+/giu
 const ARXIV_PATTERN = /\b(?:arXiv\s*:\s*)?(\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[a-z]{2})?\/\d{7}(?:v\d+)?)/giu
+
+/** Linear, bounded Markdown-link scanner for untrusted model output. */
+function markdownLinks(input: string): readonly MarkdownLink[] {
+  const links: MarkdownLink[] = []
+  let cursor = 0
+  while (cursor < input.length) {
+    const start = input.indexOf('[', cursor)
+    if (start < 0) break
+
+    let labelEnd = -1
+    const labelLimit = Math.min(input.length - 1, start + 501)
+    for (let index = start + 1; index <= labelLimit; index += 1) {
+      const character = input[index]
+      if (character === '\n' || character === '\r') break
+      if (character === ']') {
+        labelEnd = index
+        break
+      }
+    }
+    if (labelEnd <= start + 1 || input[labelEnd + 1] !== '(') {
+      cursor = start + 1
+      continue
+    }
+
+    const targetStart = labelEnd + 2
+    const scheme = input.slice(targetStart, targetStart + 8).toLowerCase()
+    if (!scheme.startsWith('http://') && !scheme.startsWith('https://')) {
+      cursor = start + 1
+      continue
+    }
+
+    let targetEnd = targetStart
+    while (targetEnd < input.length && input[targetEnd] !== ')' && !/\s/u.test(input[targetEnd] ?? '')) targetEnd += 1
+    if (input[targetEnd] !== ')') {
+      cursor = Math.min(input.length, targetEnd + 1)
+      continue
+    }
+
+    const end = targetEnd + 1
+    links.push({
+      label: input.slice(start + 1, labelEnd),
+      target: input.slice(targetStart, targetEnd),
+      raw: input.slice(start, end),
+      start,
+      end,
+    })
+    cursor = end
+  }
+  return links
+}
 
 function trimUrl(value: string): string {
   let result = value
@@ -82,7 +139,13 @@ function fromTarget(target: string, raw: string, label: string | null, start: nu
   }
   const host = parsed.hostname.toLowerCase()
   if (host === 'doi.org' || host === 'dx.doi.org') {
-    const doi = trimDoi(decodeURIComponent(parsed.pathname.slice(1)))
+    let decodedPath: string
+    try {
+      decodedPath = decodeURIComponent(parsed.pathname.slice(1))
+    } catch {
+      return null
+    }
+    const doi = trimDoi(decodedPath)
     if (DOI_PATTERN.test(doi)) {
       DOI_PATTERN.lastIndex = 0
       return { kind: 'doi', normalized: doi, raw, url: `https://doi.org/${doi}`, expectedTitle: label, start, end }
@@ -154,9 +217,8 @@ function claimAssociations(input: string, citations: readonly Citation[]): reado
 /** Extract and deduplicate supported citation targets without network access. */
 export function extractCitations(input: string): ExtractionReport {
   const candidates: Candidate[] = []
-  for (const match of input.matchAll(MARKDOWN_LINK)) {
-    if (match.index === undefined || match[1] === undefined || match[2] === undefined) continue
-    const candidate = fromTarget(match[2], match[0], titleLabel(match[1], match[2]), match.index, match.index + match[0].length)
+  for (const match of markdownLinks(input)) {
+    const candidate = fromTarget(match.target, match.raw, titleLabel(match.label, match.target), match.start, match.end)
     if (candidate !== null) candidates.push(candidate)
   }
   for (const match of input.matchAll(URL_PATTERN)) {

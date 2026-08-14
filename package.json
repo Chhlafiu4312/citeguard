@@ -1,7 +1,7 @@
 {
   "name": "dsh-citeguard",
   "description": "Citation extraction and evidence verification for DeepSeek Harness",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "repository": {
     "type": "git",

@@ -45,6 +45,17 @@ describe('citation verification', () => {
     expect(report.results[0]?.metadata?.provider).toBe('arxiv')
   })
 
+  it('decodes XML entities exactly once', async () => {
+    const atom = `<?xml version="1.0"?><feed><entry><title>&amp;lt;script&amp;gt;</title><published>2024-01-02T00:00:00Z</published></entry></feed>`
+    const report = await checkCitations(
+      'arXiv:2401.12345',
+      resolveConfig(),
+      { online: true },
+      { fetcher: async () => new Response(atom), resolveHost: publicDns },
+    )
+    expect(report.results[0]?.metadata?.title).toBe('&lt;script&gt;')
+  })
+
   it('does not request arbitrary URLs in metadata mode', async () => {
     const fetcher = vi.fn(async () => new Response('unexpected'))
     const report = await checkCitations('See https://example.com/paper.', resolveConfig(), { online: true }, { fetcher, resolveHost: publicDns })

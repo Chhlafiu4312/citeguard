@@ -59,12 +59,16 @@ export function titleSimilarity(left: string, right: string): number {
 }
 
 function xmlDecode(value: string): string {
-  return value
-    .replace(/&amp;/gu, '&')
-    .replace(/&lt;/gu, '<')
-    .replace(/&gt;/gu, '>')
-    .replace(/&quot;/gu, '"')
-    .replace(/&#39;/gu, "'")
+  return value.replace(/&(?:amp|lt|gt|quot|#39);/gu, entity => {
+    switch (entity) {
+      case '&amp;': return '&'
+      case '&lt;': return '<'
+      case '&gt;': return '>'
+      case '&quot;': return '"'
+      case '&#39;': return "'"
+      default: return entity
+    }
+  })
 }
 
 function xmlFirst(source: string, tag: string): string | null {
