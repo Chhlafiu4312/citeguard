@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/Chhlafiu4312/citeguard/security/advisories/new
+    about: Report SSRF bypasses, unsafe parsing, or verification overclaims privately.

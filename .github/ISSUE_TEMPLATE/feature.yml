@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a focused CiteGuard verification or research-integrity improvement.
+title: '[Feature] '
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Research or verification problem
+      description: Describe the user-facing problem using public or synthetic examples.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed evidence behavior
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Evidence, privacy, network, or compatibility tradeoffs
+    validations:
+      required: true
