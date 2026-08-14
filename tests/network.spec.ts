@@ -122,6 +122,136 @@ describe('safe citation transport', () => {
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
+  it('uses one deadline across every redirect hop', async () => {
+    let calls = 0
+    const signals: AbortSignal[] = []
+    const fetcher = vi.fn(async (_url: string, init: RequestInit) => {
+      calls += 1
+      if (init.signal !== null && init.signal !== undefined) signals.push(init.signal)
+      return calls === 1
+        ? new Response('', { status: 302, headers: { location: '/final' } })
+        : await new Promise<Response>(resolve => setTimeout(() => resolve(new Response('late')), 200))
+    })
+
+    const started = performance.now()
+    await expect(fetchSafeText('https://example.com/start', {
+      fetcher,
+      resolveHost: publicDns,
+      timeoutMs: 20,
+      maxResponseBytes: 10_000,
+      maxRedirects: 2,
+    })).rejects.toMatchObject({ code: 'timeout' })
+    expect(performance.now() - started).toBeLessThan(150)
+    expect(signals).toHaveLength(2)
+    expect(signals[1]).toBe(signals[0])
+  })
+
+  it('includes DNS resolution in the request deadline', async () => {
+    const fetcher = vi.fn(async () => new Response('unexpected'))
+    const slowDns = async (): Promise<readonly string[]> => {
+      await new Promise(resolve => setTimeout(resolve, 30))
+      return ['93.184.216.34']
+    }
+
+    await expect(fetchSafeText('https://example.com/start', {
+      fetcher,
+      resolveHost: slowDns,
+      timeoutMs: 10,
+      maxResponseBytes: 10_000,
+      maxRedirects: 0,
+    })).rejects.toMatchObject({ code: 'timeout' })
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('cancels a response body that arrives after timeout', async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true
+      },
+    })
+    const lateFetcher = async (): Promise<Response> => await new Promise(resolve => {
+      setTimeout(() => resolve(new Response(body)), 30)
+    })
+
+    await expect(fetchSafeText('https://example.com/start', {
+      fetcher: lateFetcher,
+      resolveHost: publicDns,
+      timeoutMs: 5,
+      maxResponseBytes: 10_000,
+      maxRedirects: 0,
+    })).rejects.toMatchObject({ code: 'timeout' })
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(cancelled).toBe(true)
+  })
+
+  it('cancels a late response when an injected transport aborts synchronously', async () => {
+    const controller = new AbortController()
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true
+      },
+    })
+    const abortingFetcher = async (): Promise<Response> => {
+      controller.abort()
+      return await new Promise(resolve => setTimeout(() => resolve(new Response(body)), 20))
+    }
+
+    await expect(fetchSafeText('https://example.com/start', {
+      fetcher: abortingFetcher,
+      resolveHost: publicDns,
+      timeoutMs: 1_000,
+      maxResponseBytes: 10_000,
+      maxRedirects: 0,
+      signal: controller.signal,
+    })).rejects.toMatchObject({ code: 'timeout' })
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(cancelled).toBe(true)
+  })
+
+  it('cancels a redirect body before rejecting an unsafe target', async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true
+      },
+    })
+
+    await expect(fetchSafeText('https://example.com/start', {
+      fetcher: async () => new Response(body, {
+        status: 302,
+        headers: { location: 'http://example.com/final' },
+      }),
+      resolveHost: publicDns,
+      timeoutMs: 1_000,
+      maxResponseBytes: 10_000,
+      maxRedirects: 2,
+    })).rejects.toMatchObject({ code: 'blocked-host' })
+    expect(cancelled).toBe(true)
+  })
+
+  it('cancels a redirect body before rejecting a malformed target', async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true
+      },
+    })
+
+    await expect(fetchSafeText('https://example.com/start', {
+      fetcher: async () => new Response(body, {
+        status: 302,
+        headers: { location: 'http://[invalid' },
+      }),
+      resolveHost: publicDns,
+      timeoutMs: 1_000,
+      maxResponseBytes: 10_000,
+      maxRedirects: 2,
+    })).rejects.toMatchObject({ code: 'invalid-url' })
+    expect(cancelled).toBe(true)
+  })
+
   it('rejects declared and streamed oversized responses', async () => {
     const declared = async (): Promise<Response> => new Response('small', { headers: { 'content-length': '9999' } })
     await expect(fetchSafeText('https://example.com', {

@@ -111,7 +111,63 @@ export function isPublicAddress(address: string): boolean {
   return false
 }
 
-async function resolveSafeHttpTarget(input: string, resolver: ResolveHost, allowedHosts?: ReadonlySet<string>): Promise<SafeHttpTarget> {
+async function resolveWithSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  return await new Promise((resolve, reject) => {
+    let settled = false
+    const aborted = () => {
+      if (settled) return
+      settled = true
+      reject(new NetworkGuardError('timeout', 'The citation request timed out or was cancelled.'))
+    }
+    operation.then(value => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', aborted)
+      resolve(value)
+    }, error => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', aborted)
+      reject(error)
+    })
+    if (signal.aborted) aborted()
+    else signal.addEventListener('abort', aborted, { once: true })
+  })
+}
+
+async function fetchWithSignal(operation: Promise<Response>, signal: AbortSignal): Promise<Response> {
+  return await new Promise((resolve, reject) => {
+    let settled = false
+    const aborted = () => {
+      if (settled) return
+      settled = true
+      reject(new NetworkGuardError('timeout', 'The citation request timed out or was cancelled.'))
+    }
+    operation.then(response => {
+      if (settled) {
+        if (response.body !== null) void response.body.cancel().catch(() => undefined)
+        return
+      }
+      settled = true
+      signal.removeEventListener('abort', aborted)
+      resolve(response)
+    }, error => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', aborted)
+      reject(error)
+    })
+    if (signal.aborted) aborted()
+    else signal.addEventListener('abort', aborted, { once: true })
+  })
+}
+
+async function resolveSafeHttpTarget(
+  input: string,
+  resolver: ResolveHost,
+  allowedHosts?: ReadonlySet<string>,
+  signal?: AbortSignal,
+): Promise<SafeHttpTarget> {
   let url: URL
   try {
     url = new URL(input)
@@ -137,8 +193,11 @@ async function resolveSafeHttpTarget(input: string, resolver: ResolveHost, allow
     addresses = [hostname.replace(/^\[|\]$/gu, '')]
   } else {
     try {
-      addresses = await resolver(hostname)
-    } catch {
+      if (signal?.aborted === true) throw new NetworkGuardError('timeout', 'The citation request timed out or was cancelled.')
+      const resolution = resolver(hostname)
+      addresses = signal === undefined ? await resolution : await resolveWithSignal(resolution, signal)
+    } catch (error) {
+      if (error instanceof NetworkGuardError) throw error
       throw new NetworkGuardError('dns-failure', 'The citation host could not be resolved safely.')
     }
   }
@@ -217,6 +276,7 @@ async function readChunk(reader: ReadableStreamDefaultReader<Uint8Array>, signal
 }
 
 async function boundedText(response: Response, maximum: number, signal: AbortSignal): Promise<string> {
+  if (signal.aborted) throw new NetworkGuardError('timeout', 'The citation request timed out or was cancelled.')
   const declared = Number(response.headers.get('content-length'))
   if (Number.isFinite(declared) && declared > maximum) {
     await response.body?.cancel()
@@ -257,33 +317,46 @@ export async function fetchSafeText(input: string, options: SafeRequestOptions):
   const allowedHosts = options.allowedHosts === undefined
     ? undefined
     : new Set(options.allowedHosts.map(host => host.toLowerCase().replace(/\.$/u, '')))
+  const deadline = AbortSignal.timeout(options.timeoutMs)
+  const signal = options.signal === undefined ? deadline : AbortSignal.any([options.signal, deadline])
   let current = input
   for (let hop = 0; hop <= options.maxRedirects; hop += 1) {
-    const safeTarget = await resolveSafeHttpTarget(current, resolver, allowedHosts)
+    const safeTarget = await resolveSafeHttpTarget(current, resolver, allowedHosts, signal)
     const safeUrl = safeTarget.url
-    const deadline = AbortSignal.timeout(options.timeoutMs)
-    const signal = options.signal === undefined ? deadline : AbortSignal.any([options.signal, deadline])
     let response: Response
     try {
-      response = await fetcher(safeUrl.href, {
+      response = await fetchWithSignal(fetcher(safeUrl.href, {
         method: 'GET',
         redirect: 'manual',
         ...(options.headers === undefined ? {} : { headers: options.headers }),
         signal,
-      }, safeTarget.addresses)
+      }, safeTarget.addresses), signal)
     } catch (error) {
       if (signal.aborted) throw new NetworkGuardError('timeout', 'The citation request timed out or was cancelled.')
       throw new NetworkGuardError('http-error', error instanceof Error ? error.message : 'The citation request failed.')
     }
+    if (signal.aborted) {
+      await response.body?.cancel().catch(() => undefined)
+      throw new NetworkGuardError('timeout', 'The citation request timed out or was cancelled.')
+    }
     if (redirect(response.status)) {
       const location = response.headers.get('location')
+      try {
+        await response.body?.cancel()
+      } catch {
+        throw new NetworkGuardError('http-error', 'Redirect response body could not be cancelled safely.')
+      }
       if (location === null) throw new NetworkGuardError('http-error', 'Redirect response did not include a location.')
       if (hop === options.maxRedirects) throw new NetworkGuardError('too-many-redirects', 'Citation URL exceeded the redirect limit.')
-      const target = new URL(location, safeUrl)
+      let target: URL
+      try {
+        target = new URL(location, safeUrl)
+      } catch {
+        throw new NetworkGuardError('invalid-url', 'Redirect target is not a valid URL.')
+      }
       if (safeUrl.protocol === 'https:' && target.protocol === 'http:') {
         throw new NetworkGuardError('blocked-host', 'HTTPS citation redirects may not downgrade to HTTP.')
       }
-      await response.body?.cancel()
       current = target.href
       continue
     }
