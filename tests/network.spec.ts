@@ -80,6 +80,36 @@ describe('safe citation transport', () => {
     expect(resolveHost).toHaveBeenCalledTimes(2)
   })
 
+  it('enforces an exact host allow-list on every redirect hop', async () => {
+    const sameHostFetcher = vi.fn(async (url: string) => url.endsWith('/start')
+      ? new Response('', { status: 302, headers: { location: '/final' } })
+      : new Response('done'))
+    const result = await fetchSafeText('https://provider.example/start', {
+      fetcher: sameHostFetcher,
+      resolveHost: publicDns,
+      timeoutMs: 1_000,
+      maxResponseBytes: 10_000,
+      maxRedirects: 2,
+      allowedHosts: ['PROVIDER.EXAMPLE.'],
+    })
+    expect(result.finalUrl).toBe('https://provider.example/final')
+    expect(sameHostFetcher).toHaveBeenCalledTimes(2)
+
+    const crossHostFetcher = vi.fn(async () => new Response('', {
+      status: 302,
+      headers: { location: 'https://unrelated.example/final' },
+    }))
+    await expect(fetchSafeText('https://provider.example/start', {
+      fetcher: crossHostFetcher,
+      resolveHost: publicDns,
+      timeoutMs: 1_000,
+      maxResponseBytes: 10_000,
+      maxRedirects: 2,
+      allowedHosts: ['provider.example'],
+    })).rejects.toMatchObject({ code: 'blocked-host' })
+    expect(crossHostFetcher).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects HTTPS-to-HTTP redirect downgrades', async () => {
     const fetcher = vi.fn(async () => new Response('', { status: 302, headers: { location: 'http://example.com/plain' } }))
     await expect(fetchSafeText('https://example.com/paper', {

@@ -83,7 +83,12 @@ function xmlAll(source: string, tag: string): readonly string[] {
     .filter(Boolean)
 }
 
-function requestOptions(config: ResolvedConfig, dependencies: VerificationDependencies, signal?: AbortSignal): SafeRequestOptions {
+function requestOptions(
+  config: ResolvedConfig,
+  dependencies: VerificationDependencies,
+  signal?: AbortSignal,
+  allowedHosts?: readonly string[],
+): SafeRequestOptions {
   return {
     timeoutMs: config.timeoutMs,
     maxResponseBytes: config.maxResponseBytes,
@@ -91,6 +96,7 @@ function requestOptions(config: ResolvedConfig, dependencies: VerificationDepend
     ...(dependencies.fetcher === undefined ? {} : { fetcher: dependencies.fetcher }),
     ...(dependencies.resolveHost === undefined ? {} : { resolveHost: dependencies.resolveHost }),
     ...(signal === undefined ? {} : { signal }),
+    ...(allowedHosts === undefined ? {} : { allowedHosts }),
     headers: {
       accept: 'application/json, application/atom+xml, text/html;q=0.8, */*;q=0.1',
       'user-agent': 'CiteGuard/0.1 (+DeepSeek-Harness-plugin)',
@@ -100,7 +106,7 @@ function requestOptions(config: ResolvedConfig, dependencies: VerificationDepend
 
 async function crossref(citation: Citation, config: ResolvedConfig, dependencies: VerificationDependencies, signal?: AbortSignal): Promise<CitationMetadata> {
   const endpoint = `https://api.crossref.org/works/${encodeURIComponent(citation.normalized)}`
-  const response = await fetchSafeText(endpoint, requestOptions(config, dependencies, signal))
+  const response = await fetchSafeText(endpoint, requestOptions(config, dependencies, signal, ['api.crossref.org']))
   const parsed = JSON.parse(response.text) as {
     message?: {
       title?: unknown
@@ -136,7 +142,7 @@ async function crossref(citation: Citation, config: ResolvedConfig, dependencies
 
 async function arxiv(citation: Citation, config: ResolvedConfig, dependencies: VerificationDependencies, signal?: AbortSignal): Promise<CitationMetadata> {
   const endpoint = `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(citation.normalized)}`
-  const response = await fetchSafeText(endpoint, requestOptions(config, dependencies, signal))
+  const response = await fetchSafeText(endpoint, requestOptions(config, dependencies, signal, ['export.arxiv.org']))
   const entry = response.text.match(/<entry(?:\s[^>]*)?>([\s\S]*?)<\/entry>/iu)?.[1]
   if (entry === undefined) throw new NetworkGuardError('http-error', 'arXiv did not return a matching record.')
   const published = xmlFirst(entry, 'published')

@@ -64,6 +64,21 @@ describe('citation verification', () => {
     expect(fetcher).not.toHaveBeenCalled()
   })
 
+  it('does not follow fixed-provider redirects to an unrelated host', async () => {
+    const fetcher = vi.fn(async () => fetcher.mock.calls.length === 1
+      ? new Response('', { status: 302, headers: { location: 'https://redirect.example/work' } })
+      : new Response(JSON.stringify({ message: { title: ['Unexpected'] } })))
+    const report = await checkCitations(
+      '10.1234/example',
+      resolveConfig(),
+      { online: true },
+      { fetcher, resolveHost: publicDns },
+    )
+
+    expect(report.results[0]?.status).toBe('blocked')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
   it('blocks private URL targets in full mode', async () => {
     const report = await checkCitations('See http://127.0.0.1/admin.', resolveConfig({ networkMode: 'full' }), { online: true })
     expect(report.results[0]?.status).toBe('blocked')
