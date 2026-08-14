@@ -2,6 +2,9 @@
 
 English | [中文](README.zh.md)
 
+[![CI](https://github.com/Chhlafiu4312/citeguard/actions/workflows/ci.yml/badge.svg)](https://github.com/Chhlafiu4312/citeguard/actions/workflows/ci.yml)
+[![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+
 CiteGuard is a citation linter and bounded metadata verifier for DeepSeek Harness. It extracts DOI, arXiv, URL, and Markdown citations from drafts, checks what can be checked mechanically, and labels every conclusion at the right confidence level.
 
 It never turns “the link responded” into “the claim is true.”
@@ -50,12 +53,15 @@ Exit codes are `0` for success, `1` when a requested `--fail-on` status occurs, 
 
 ## DeepSeek Harness installation
 
-This repository is private-package-ready for local tarball and Git consumption; it has not been published to npm.
+The source is published on GitHub. The npm package remains unpublished.
 
 ```sh
+dsh plugin --profile headless add github:Chhlafiu4312/citeguard#v0.1.0
+dsh --profile headless --dump-config
+
+# Or build and install a local tarball.
 pnpm pack
 dsh plugin --profile headless add ./dsh-citeguard-0.1.0.tgz
-dsh --profile headless --dump-config
 ```
 
 The package contributes [cordis.patch.yml](cordis.patch.yml), which registers `citeguard`. The same bundle can be installed into the `web` profile. An optional `dsh-citeguard/invariant` companion remains available for custom profiles that mount the Harness `invariants` service; the stock `headless` and `web` profiles do not mount it.
@@ -134,6 +140,6 @@ Tests use deterministic fake providers and make no real network requests. They c
 
 ## Status
 
-Version `0.1.0` is an independently tested MVP. The package remains `private: true` until a repository owner explicitly chooses a public Git remote and npm publication policy. No release, push, or registry publication is performed by the build.
+Version `0.1.0` is an independently tested MVP published at [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard). The package remains `private: true`; no npm registry publication is performed by the build.
 
 BSD-3-Clause licensed. See [LICENSE](LICENSE).

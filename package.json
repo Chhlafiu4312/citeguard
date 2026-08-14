@@ -3,6 +3,14 @@
   "description": "Citation extraction and evidence verification for DeepSeek Harness",
   "version": "0.1.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Chhlafiu4312/citeguard.git"
+  },
+  "homepage": "https://github.com/Chhlafiu4312/citeguard#readme",
+  "bugs": {
+    "url": "https://github.com/Chhlafiu4312/citeguard/issues"
+  },
   "type": "module",
   "packageManager": "pnpm@11.7.0",
   "engines": {

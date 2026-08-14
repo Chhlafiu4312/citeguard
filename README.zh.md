@@ -2,6 +2,9 @@
 
 [English](README.md) | 中文
 
+[![CI](https://github.com/Chhlafiu4312/citeguard/actions/workflows/ci.yml/badge.svg)](https://github.com/Chhlafiu4312/citeguard/actions/workflows/ci.yml)
+[![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+
 CiteGuard 是 DeepSeek Harness 的引用检查器与受限元数据核验工具。它可以从草稿中提取 DOI、arXiv、URL 和 Markdown 引用，完成可机械验证的检查，并为每个结论标明正确的置信边界。
 
 它绝不会把“链接能打开”写成“论点已被证明”。
@@ -50,12 +53,15 @@ node lib/cli.js --file draft.md --full --json --fail-on mismatch,unreachable,blo
 
 ## 安装到 DeepSeek Harness
 
-当前仓库已支持本地 tarball 与 Git 安装，但尚未发布到 npm。
+源码已经发布到 GitHub，npm 包尚未发布。
 
 ```sh
+dsh plugin --profile headless add github:Chhlafiu4312/citeguard#v0.1.0
+dsh --profile headless --dump-config
+
+# 或构建并安装本地 tarball。
 pnpm pack
 dsh plugin --profile headless add ./dsh-citeguard-0.1.0.tgz
-dsh --profile headless --dump-config
 ```
 
 包内的 [cordis.patch.yml](cordis.patch.yml) 会注册 `citeguard`，也可以安装到 `web` profile。可选的 `dsh-citeguard/invariant` companion 保留给显式挂载 Harness `invariants` 服务的自定义 profile；官方 `headless` 与 `web` profile 默认不挂载该服务。激活后的工具是 `citeguard_check({ text, online? })`。
@@ -111,6 +117,6 @@ pnpm run prepare
 pnpm run build
 ```
 
-测试全部使用确定性假提供方，不会发起真实网络请求。`0.1.0` 是经过独立测试的 MVP，包暂时保持 `private: true`，等待仓库所有者明确选择 GitHub 远程仓库和 npm 发布策略。
+测试全部使用确定性假提供方，不会发起真实网络请求。`0.1.0` 是经过独立测试并发布于 [Chhlafiu4312/citeguard](https://github.com/Chhlafiu4312/citeguard) 的 MVP。包仍保持 `private: true`，不会发布到 npm。
 
 采用 BSD-3-Clause 许可证，详见 [LICENSE](LICENSE)。
